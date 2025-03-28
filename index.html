@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Searchstring Generator</title>
+  <script>
+    async function generate() {
+      const vacancyText = document.getElementById('vacancy').value;
+      const role = document.getElementById('role').value;
+      const location = document.getElementById('location').value;
+      const extraKeywordsInput = document.getElementById('extraKeywords').value;
+
+      const urlInput = document.getElementById('vacancyURL').value;
+      if (urlInput) {
+        try {
+          const response = await fetch(urlInput);
+          const html = await response.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const text = doc.body.innerText;
+          document.getElementById('vacancy').value = text;
+        } catch (e) {
+          alert("Kan vacaturetekst niet ophalen van de URL.");
+        }
+      }
+
+      const combinedText = vacancyText + ' ' + extraKeywordsInput;
+      const keywords = combinedText.match(/\b(Java|Python|C\+\+|R&D|composites?|carbon|lab|technician|research|development|engineering|scientist|materials?|\w{4,})\b/gi) || [];
+      const uniqueKeywords = [...new Set(keywords.map(k => k.toLowerCase()))];
+
+      const boolSearch = `("${role}") AND ${location} AND (${uniqueKeywords.join(' OR ')})`;
+      const googleSearch = `site:linkedin.com/in/ ("${role}") ${location} ${uniqueKeywords.join(' ')}`;
+      const indeedSearch = `${role} ${location} site:indeed.nl`;
+      const githubSearch = `site:github.com ${role} ${location} ${uniqueKeywords.join(' ')}`;
+      const researchgateSearch = `site:researchgate.net ${role} ${location} ${uniqueKeywords.join(' ')}`;
+      const stackoverflowSearch = `site:stackoverflow.com/users ${role} ${location} ${uniqueKeywords.join(' ')}`;
+
+      const output = `LinkedIn Boolean Search:\n${boolSearch}\n\n` +
+                     `Google Search (LinkedIn-profielen):\n${googleSearch}\n\n` +
+                     `Indeed Search:\n${indeedSearch}\n\n` +
+                     `GitHub Search:\n${githubSearch}\n\n` +
+                     `ResearchGate Search:\n${researchgateSearch}\n\n` +
+                     `Stack Overflow Search:\n${stackoverflowSearch}`;
+
+      document.getElementById('output').innerHTML = `
+        <h3>Zoekstrings</h3>
+        <p><strong>LinkedIn Boolean Search:</strong><br><code>${boolSearch}</code></p>
+        <p><strong>Google Search (LinkedIn-profielen):</strong><br><code>${googleSearch}</code></p>
+        <p><strong>Indeed Search:</strong><br><code>${indeedSearch}</code></p>
+        <p><strong>GitHub Search:</strong><br><code>${githubSearch}</code></p>
+        <p><strong>ResearchGate Search:</strong><br><code>${researchgateSearch}</code></p>
+        <p><strong>Stack Overflow Search:</strong><br><code>${stackoverflowSearch}</code></p>
+      `;
+
+      const blob = new Blob([output], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const downloadLink = document.getElementById('download');
+      downloadLink.href = url;
+      downloadLink.download = `zoekstrings-${role.replace(/\s+/g, '-')}.txt`;
+      downloadLink.style.display = 'inline';
+    }
+  </script>
+</head>
+<body style="font-family: sans-serif; max-width: 800px; margin: auto; padding: 2rem;">
+  <h2>Searchstring Generator</h2>
+  <p>Geef een functietitel, locatie en vacaturetekst of URL op. Voeg eventueel handmatig extra zoekwoorden toe. Klik op "Genereer" om zoekstrings te krijgen.</p>
+
+  <label for="role"><strong>Functietitel:</strong></label><br>
+  <input type="text" id="role" placeholder="Bijv. Research Technician" style="width: 100%; margin-bottom: 1rem;"/><br>
+
+  <label for="location"><strong>Locatie:</strong></label><br>
+  <input type="text" id="location" placeholder="Bijv. Enschede" style="width: 100%; margin-bottom: 1rem;"/><br>
+
+  <label for="vacancyURL"><strong>Vacature URL (optioneel):</strong></label><br>
+  <input type="text" id="vacancyURL" placeholder="Bijv. https://..." style="width: 100%; margin-bottom: 1rem;"/><br>
+
+  <label for="vacancy"><strong>Vacaturetekst (plak hier in of laat leeg als je URL gebruikt):</strong></label><br>
+  <textarea id="vacancy" rows="10" style="width: 100%; margin-bottom: 1rem;"></textarea><br>
+
+  <label for="extraKeywords"><strong>Extra zoekwoorden (optioneel, gescheiden door spaties):</strong></label><br>
+  <input type="text" id="extraKeywords" placeholder="Bijv. epoxy vacuum molding analytical" style="width: 100%; margin-bottom: 1rem;"/><br>
+
+  <button onclick="generate()" style="padding: 0.5rem 1rem; font-size: 1rem;">Genereer</button>
+  <a id="download" style="margin-left: 1rem; display: none;" href="#">Download zoekstrings</a>
+
+  <div id="output" style="margin-top: 2rem;"></div>
+</body>
+</html>
