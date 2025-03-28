@@ -5,54 +5,77 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Searchstring Generator</title>
   <script>
+    function copyToClipboardById(id) {
+      const el = document.getElementById(id);
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      try {
+        const successful = document.execCommand('copy');
+        alert(successful ? 'Gekopieerd naar klembord!' : 'Kopiëren mislukt.');
+      } catch (err) {
+        alert('Kopiëren mislukt.');
+      }
+      selection.removeAllRanges();
+    }
+
     async function generate() {
-      const vacancyText = document.getElementById('vacancy').value;
-      const role = document.getElementById('role').value;
-      const location = document.getElementById('location').value;
+      let role = document.getElementById('role').value.trim();
+      let location = document.getElementById('location').value.trim();
       const extraKeywordsInput = document.getElementById('extraKeywords').value;
 
       const urlInput = document.getElementById('vacancyURL').value;
+      let vacancyText = document.getElementById('vacancy').value;
       if (urlInput) {
         try {
-          const response = await fetch(urlInput);
-          const html = await response.text();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          const text = doc.body.innerText;
-          document.getElementById('vacancy').value = text;
+          const response = await fetch(`https://test-string.onrender.com/scrape?url=${encodeURIComponent(urlInput)}`);
+          const scraped = await response.json();
+
+          console.log('Scraper response:', scraped);
+
+          vacancyText = scraped.text;
+          document.getElementById('vacancy').value = vacancyText;
+
+          role = role || scraped.h1 || scraped.title?.split('|')[0].trim();
+          document.getElementById('role').value = role;
+
+          const locationMatch = scraped.text.match(/\b(Amsterdam|Rotterdam|Utrecht|Eindhoven|Enschede|Groningen|Den\s*Haag|Zwolle|Arnhem|Tilburg|Berlin|London|Paris|Munich|New\s*York|San\s*Francisco|Brussels|Copenhagen)\b/i);
+          if (!location && locationMatch) {
+            location = locationMatch[0];
+            document.getElementById('location').value = location;
+          }
         } catch (e) {
-          alert("Kan vacaturetekst niet ophalen van de URL.");
+          alert("Kan vacaturetekst niet ophalen van de scraper-service.");
+          console.error("Scraping error:", e);
         }
       }
 
       const combinedText = vacancyText + ' ' + extraKeywordsInput;
-      const keywords = combinedText.match(/\b(Java|Python|C\+\+|R&D|composites?|carbon|lab|technician|research|development|engineering|scientist|materials?|\w{4,})\b/gi) || [];
+      const keywords = combinedText.match(/\b(Java|Python|C\+\+|R&D|composites?|carbon|lab|technician|research|development|engineering|scientist|materials?|analytical|epoxy|vacuum|molding|data|simulation|design|testing|measurement|analysis|fabrication|quality|production|automation|programming|skills|knowledge|expertise|experience|proficient|fluent|competent|tools|methods|framework|approach|workflow|language|systems|coding|labwork|inspection|calibration)\b/gi) || [];
       const uniqueKeywords = [...new Set(keywords.map(k => k.toLowerCase()))];
+      const quotedKeywords = uniqueKeywords.map(k => `\"${k}\"`);
 
-      const boolSearch = `("${role}") AND ${location} AND (${uniqueKeywords.join(' OR ')})`;
-      const googleSearch = `site:linkedin.com/in/ ("${role}") ${location} ${uniqueKeywords.join(' ')}`;
-      const indeedSearch = `${role} ${location} site:indeed.nl`;
-      const githubSearch = `site:github.com ${role} ${location} ${uniqueKeywords.join(' ')}`;
-      const researchgateSearch = `site:researchgate.net ${role} ${location} ${uniqueKeywords.join(' ')}`;
-      const stackoverflowSearch = `site:stackoverflow.com/users ${role} ${location} ${uniqueKeywords.join(' ')}`;
+      const boolSearch = (role && location && quotedKeywords.length > 0)
+        ? [`\"${role}\"`, `\"${location}\"`, ...quotedKeywords].join(' ')
+        : "⚠️ Niet genoeg gegevens om een Boolean Search te genereren. Zorg dat rol, locatie en trefwoorden beschikbaar zijn.";
 
-      const output = `LinkedIn Boolean Search:\n${boolSearch}\n\n` +
-                     `Google Search (LinkedIn-profielen):\n${googleSearch}\n\n` +
-                     `Indeed Search:\n${indeedSearch}\n\n` +
-                     `GitHub Search:\n${githubSearch}\n\n` +
-                     `ResearchGate Search:\n${researchgateSearch}\n\n` +
-                     `Stack Overflow Search:\n${stackoverflowSearch}`;
+      const googleSearch = `https://www.google.com/search?q=${encodeURIComponent(role + ' ' + location + ' ' + uniqueKeywords.join(' '))}`;
 
       document.getElementById('output').innerHTML = `
         <h3>Zoekstrings</h3>
-        <p><strong>LinkedIn Boolean Search:</strong><br><code>${boolSearch}</code></p>
-        <p><strong>Google Search (LinkedIn-profielen):</strong><br><code>${googleSearch}</code></p>
-        <p><strong>Indeed Search:</strong><br><code>${indeedSearch}</code></p>
-        <p><strong>GitHub Search:</strong><br><code>${githubSearch}</code></p>
-        <p><strong>ResearchGate Search:</strong><br><code>${researchgateSearch}</code></p>
-        <p><strong>Stack Overflow Search:</strong><br><code>${stackoverflowSearch}</code></p>
+        <p><strong>LinkedIn Boolean Search:</strong><br>
+          <code id="boolText">${boolSearch}</code><br>
+          <button onclick="copyToClipboardById('boolText')" style="margin-top: 0.5rem;">📋 Kopieer</button>
+        </p>
+        <p><strong>Google Search:</strong><br>
+          <code id="googleText">${googleSearch}</code><br>
+          <button onclick="copyToClipboardById('googleText')" style="margin-top: 0.5rem;">📋 Kopieer</button>
+        </p>
       `;
 
+      const output = `LinkedIn Boolean Search:\n${boolSearch}\n\nGoogle Search:\n${googleSearch}`;
       const blob = new Blob([output], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const downloadLink = document.getElementById('download');
@@ -65,25 +88,18 @@
 <body style="font-family: sans-serif; max-width: 800px; margin: auto; padding: 2rem;">
   <h2>Searchstring Generator</h2>
   <p>Geef een functietitel, locatie en vacaturetekst of URL op. Voeg eventueel handmatig extra zoekwoorden toe. Klik op "Genereer" om zoekstrings te krijgen.</p>
-
   <label for="role"><strong>Functietitel:</strong></label><br>
-  <input type="text" id="role" placeholder="Bijv. Research Technician" style="width: 100%; margin-bottom: 1rem;"/><br>
-
+  <input type="text" id="role" placeholder="Bijv. Research Technician" style="width: 100%; margin-bottom: 1rem;"><br>
   <label for="location"><strong>Locatie:</strong></label><br>
-  <input type="text" id="location" placeholder="Bijv. Enschede" style="width: 100%; margin-bottom: 1rem;"/><br>
-
+  <input type="text" id="location" placeholder="Bijv. Enschede" style="width: 100%; margin-bottom: 1rem;"><br>
   <label for="vacancyURL"><strong>Vacature URL (optioneel):</strong></label><br>
-  <input type="text" id="vacancyURL" placeholder="Bijv. https://..." style="width: 100%; margin-bottom: 1rem;"/><br>
-
+  <input type="text" id="vacancyURL" placeholder="Bijv. https://..." style="width: 100%; margin-bottom: 1rem;"><br>
   <label for="vacancy"><strong>Vacaturetekst (plak hier in of laat leeg als je URL gebruikt):</strong></label><br>
   <textarea id="vacancy" rows="10" style="width: 100%; margin-bottom: 1rem;"></textarea><br>
-
   <label for="extraKeywords"><strong>Extra zoekwoorden (optioneel, gescheiden door spaties):</strong></label><br>
-  <input type="text" id="extraKeywords" placeholder="Bijv. epoxy vacuum molding analytical" style="width: 100%; margin-bottom: 1rem;"/><br>
-
+  <input type="text" id="extraKeywords" placeholder="Bijv. epoxy vacuum molding analytical" style="width: 100%; margin-bottom: 1rem;"><br>
   <button onclick="generate()" style="padding: 0.5rem 1rem; font-size: 1rem;">Genereer</button>
   <a id="download" style="margin-left: 1rem; display: none;" href="#">Download zoekstrings</a>
-
   <div id="output" style="margin-top: 2rem;"></div>
 </body>
 </html>
